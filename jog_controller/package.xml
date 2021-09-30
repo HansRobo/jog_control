@@ -20,6 +20,8 @@
   <depend>moveit_visual_tools</depend>
   <depend>moveit_msgs</depend>
   <depend>roscpp</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
   <build_depend>roslaunch</build_depend>
   <depend>rviz</depend>
   <exec_depend>joy</exec_depend>

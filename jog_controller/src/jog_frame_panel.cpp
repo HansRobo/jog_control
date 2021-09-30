@@ -2,7 +2,8 @@
 #include <rviz/config.h>
 #include <rviz/visualization_manager.h>
 #include <ros/package.h>
-#include <tf/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/LinearMath/Transform.h>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSignalMapper>
@@ -30,7 +31,7 @@ JogFramePanel::JogFramePanel(QWidget* parent)
   {
     ROS_INFO_STREAM("link_names:" << link_names_[i]);
   }
-  
+
   QHBoxLayout* enable_layout = new QHBoxLayout;
   enable_layout->addWidget( new QLabel( "Jog Enable:" ), 1);
   jog_button_ = new QPushButton("OFF");
@@ -144,7 +145,7 @@ JogFramePanel::JogFramePanel(QWidget* parent)
   rot_z_layout->addWidget( new QLabel( "Yaw:" ), 1);
   rot_z_text_ = makeNumericLabel();
   rot_z_layout->addWidget(rot_z_text_, 3);
-  
+
   QVBoxLayout* layout = new QVBoxLayout;
   layout->addLayout(enable_layout);
   layout->addLayout(group_layout);
@@ -182,7 +183,7 @@ JogFramePanel::JogFramePanel(QWidget* parent)
 
 void JogFramePanel::onInitialize()
 {
-  connect( vis_manager_, SIGNAL( preUpdate() ), this, SLOT( update() ));  
+  connect( vis_manager_, SIGNAL( preUpdate() ), this, SLOT( update() ));
   updateFrame();
   updateTargetLink();
   initAxisComboBox();
@@ -191,21 +192,21 @@ void JogFramePanel::onInitialize()
 
 void JogFramePanel::update()
 {
-  tf::TransformListener* tf = vis_manager_->getTFClient();
-  tf::StampedTransform transform;
+  tf2::Transform transform;
   try{
-    tf->lookupTransform(frame_id_, target_link_id_, ros::Time(0), transform);
+    auto geo_tf_stamped = vis_manager_->getTF2BufferPtr()->lookupTransform(frame_id_, target_link_id_, ros::Time(0));
+    tf2::convert(geo_tf_stamped.transform, transform);
   }
-  catch (tf::TransformException ex){
+  catch (tf2::TransformException ex){
     ROS_ERROR("%s",ex.what());
-  }  
+  }
   fillNumericLabel(pos_x_text_, transform.getOrigin().x());
   fillNumericLabel(pos_y_text_, transform.getOrigin().y());
   fillNumericLabel(pos_z_text_, transform.getOrigin().z());
 
   // RPY
-  tf::Quaternion q = transform.getRotation();
-  tf::Matrix3x3 m(q);
+  tf2::Quaternion q = transform.getRotation();
+  tf2::Matrix3x3 m(q);
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
   fillNumericLabel(rot_x_text_, roll);
@@ -232,7 +233,7 @@ void JogFramePanel::updateFrame()
 {
   typedef std::vector<std::string> V_string;
   V_string frames;
-  vis_manager_->getTFClient()->getFrameStrings( frames );
+  vis_manager_->getTF2BufferPtr()->_getFrameStrings( frames );
   std::sort(frames.begin(), frames.end());
   frame_cbox_->clear();
   for (V_string::iterator it = frames.begin(); it != frames.end(); ++it )
@@ -263,14 +264,14 @@ void JogFramePanel::updateTargetLink()
 void JogFramePanel::publish()
 {
   boost::mutex::scoped_lock lock(mutex_);
-  
+
   // publish
   jog_msgs::JogFrame msg;
   msg.header.stamp = ros::Time::now();
   msg.header.frame_id = frame_id_;
   msg.group_name = group_cbox_->currentText().toStdString();
   msg.link_name = target_link_id_;
-  
+
   if (axis_id_ == "x")
   {
     msg.linear_delta.x = jog_value_;
@@ -308,7 +309,7 @@ void JogFramePanel::publish()
       jog_frame_pub_.publish(msg);
     }
   }
-}  
+}
 
 void JogFramePanel::respondEnable(bool checked)
 {
